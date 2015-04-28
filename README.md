@@ -6,7 +6,7 @@ performance can be illustrated using a speed-distance histogram which shows how 
 Usage
 ======
 
-python gpxhistogram [myfile.gpx]
+python gpxhistogram.py [myfile.gpx]
 
 
 Example
