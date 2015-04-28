@@ -109,7 +109,8 @@ def histogram(gpx, maxspeed):
 def plot_gpx_histogram(x,y1,y2):
     fig, ax1 = plt.subplots()
     plt.xticks(np.arange(min(x), max(x)+1, 2.0))
-    ax1.plot(x,y1,"b-")
+    #ax1.plot(x,y1,"b-")
+    ax1.bar(x,y1,1,color='b',alpha=1)
     ax1.set_xlabel("speed km/h")
 
     ax1.set_ylabel('distance km', color='b')
@@ -117,7 +118,8 @@ def plot_gpx_histogram(x,y1,y2):
        tl.set_color('b')
 
     ax2 = ax1.twinx()
-    ax2.plot(x,y2,"g-")
+    #ax2.plot(x,y2,"g-")
+    ax2.bar(x,y2,1,color='g',alpha=0.4)
     ax2.set_ylabel('time m', color='g')
     for tl in ax2.get_yticklabels():
         tl.set_color('g')
