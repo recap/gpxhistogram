@@ -1,0 +1,156 @@
+#!/usr/bin/pypy
+
+import pdb
+
+import sys as mod_sys
+import logging as mod_logging
+import math as mod_math
+import numpy as np
+
+import gpxpy as mod_gpxpy
+import matplotlib.pyplot as plt
+
+#mod_logging.basicConfig(level=mod_logging.DEBUG,
+#                        format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
+
+gpx_files = mod_sys.argv[1:]
+
+
+def format_time(time_s):
+    if not time_s:
+        return 'n/a'
+    minutes = mod_math.floor(time_s / 60.)
+    hours = mod_math.floor(minutes / 60.)
+
+    return '%s:%s:%s' % (str(int(hours)).zfill(2), str(int(minutes % 60)).zfill(2), str(int(time_s % 60)).zfill(2))
+
+
+def print_gpx_part_info(gpx_part, indentation='    '):
+    """
+    gpx_part may be a track or segment.
+    """
+    length_2d = gpx_part.length_2d()
+    length_3d = gpx_part.length_3d()
+    print('%sLength 2D: %s' % (indentation, length_2d / 1000.))
+    print('%sLength 3D: %s' % (indentation, length_3d / 1000.))
+
+    moving_time, stopped_time, moving_distance, stopped_distance, max_speed = gpx_part.get_moving_data()
+    print('%sMoving time: %s' % (indentation, format_time(moving_time)))
+    print('%sStopped time: %s' % (indentation, format_time(stopped_time)))
+    #print('%sStopped distance: %sm' % stopped_distance)
+    print('%sMax speed: %sm/s = %skm/h' % (indentation, max_speed, max_speed * 60. ** 2 / 1000. if max_speed else 0))
+
+    uphill, downhill = gpx_part.get_uphill_downhill()
+    print('%sTotal uphill: %sm' % (indentation, uphill))
+    print('%sTotal downhill: %sm' % (indentation, downhill))
+
+    start_time, end_time = gpx_part.get_time_bounds()
+    print('%sStarted: %s' % (indentation, start_time))
+    print('%sEnded: %s' % (indentation, end_time))
+
+    points_no = len(list(gpx_part.walk(only_points=True)))
+    print('%sPoints: %s' % (indentation, points_no))
+
+    distances = []
+    previous_point = None
+    for point in gpx_part.walk(only_points=True):
+        if previous_point:
+            distance = point.distance_2d(previous_point)
+            distances.append(distance)
+        previous_point = point
+    print('%sAvg distance between points: %sm' % (indentation, sum(distances) / len(list(gpx.walk()))))
+
+    x, y1, y2 = histogram(gpx, max_speed)
+    plot_gpx_histogram(x,y1,y2)    
+
+    print('')
+
+def histogram(gpx, maxspeed):
+    speed = []
+    distance = []
+    time = []
+    for track in gpx.tracks:
+        for segment in track.segments:
+            for point_no, point in enumerate(segment.points):
+                if point_no > 0 and point_no < len(segment.points)-1:
+                    pt_speed = ((point.speed_between(segment.points[point_no - 1]) + point.speed_between(segment.points[point_no + 1])) / 2)* 60. ** 2 / 1000
+                    pt_dist = point.distance_2d(segment.points[point_no - 1])
+		    pt_time = point.time_difference(segment.points[point_no - 1])
+                    speed.append(pt_speed)
+                    distance.append(pt_dist)
+                    time.append(pt_time)
+                    #print('%sCalculated speed: %s distance %s time %s' % (indentation,  pt_speed, pt_dist, pt_time))
+
+    bins = []
+    for b in range(0,int((maxspeed * 60. **2 /1000)+10)):
+       bins.append(b)
+
+    digit = np.digitize(speed,bins)  
+    hist_dist = {}
+    hist_time = {}
+
+    for i in range(0, len(digit)):
+        hist_dist[digit[i]] = 0
+        hist_time[digit[i]] = 0
+
+    for i in range(0, len(digit)):
+        hist_dist[digit[i]] += distance[i]
+	hist_time[digit[i]] += time[i]
+
+    for key, value in hist_dist.items():
+        d = value / 1000
+        t = hist_time[key] /60
+        hist_dist[key] = d
+        hist_time[key] = t
+        #print key," ",d," ",t
+
+    return (hist_dist.keys(), hist_dist.values(), hist_time.values())
+
+def plot_gpx_histogram(x,y1,y2):
+    fig, ax1 = plt.subplots()
+    plt.xticks(np.arange(min(x), max(x)+1, 2.0))
+    ax1.plot(x,y1,"b-")
+    ax1.set_xlabel("speed km/h")
+
+    ax1.set_ylabel('distance km', color='b')
+    for tl in ax1.get_yticklabels():
+       tl.set_color('b')
+
+    ax2 = ax1.twinx()
+    ax2.plot(x,y2,"g-")
+    ax2.set_ylabel('time m', color='g')
+    for tl in ax2.get_yticklabels():
+        tl.set_color('g')
+    plt.show() 
+
+def print_gpx_info(gpx):
+    print('File: %s' % gpx_file)
+
+    if gpx.name:
+        print('  GPX name: %s' % gpx.name)
+    if gpx.description:
+        print('  GPX description: %s' % gpx.description)
+    if gpx.author:
+        print('  Author: %s' % gpx.author)
+    if gpx.email:
+        print('  Email: %s' % gpx.email)
+
+    print_gpx_part_info(gpx)
+
+    #for track_no, track in enumerate(gpx.tracks):
+    #    for segment_no, segment in enumerate(track.segments):
+    #        print '    Track #%s, Segment #%s' % (track_no, segment_no)
+    #        print_gpx_part_info(segment, indentation='        ')
+
+if not gpx_files:
+    print('No GPX files given')
+    mod_sys.exit(1)
+
+for gpx_file in gpx_files:
+    try:
+        gpx = mod_gpxpy.parse(open(gpx_file))
+        print_gpx_info(gpx)
+    except Exception as e:
+        mod_logging.exception(e)
+        print('Error processing %s' % gpx_file)
+        mod_sys.exit(1)
