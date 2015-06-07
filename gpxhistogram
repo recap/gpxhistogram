@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import pdb
 
@@ -9,12 +9,14 @@ import numpy as np
 
 import gpxpy as mod_gpxpy
 import matplotlib.pyplot as plt
+import argparse
+import os
 
 #mod_logging.basicConfig(level=mod_logging.DEBUG,
 #                        format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
 
-gpx_files = mod_sys.argv[1:]
 
+to_file = False
 
 def format_time(time_s):
     if not time_s:
@@ -25,7 +27,7 @@ def format_time(time_s):
     return '%s:%s:%s' % (str(int(hours)).zfill(2), str(int(minutes % 60)).zfill(2), str(int(time_s % 60)).zfill(2))
 
 
-def print_gpx_part_info(gpx_part, indentation='    '):
+def print_gpx_part_info(gpx_part, gpx_file, indentation='    '):
     """
     gpx_part may be a track or segment.
     """
@@ -61,7 +63,7 @@ def print_gpx_part_info(gpx_part, indentation='    '):
     print('%sAvg distance between points: %sm' % (indentation, sum(distances) / len(list(gpx.walk()))))
 
     x, y1, y2 = histogram(gpx, max_speed)
-    plot_gpx_histogram(x,y1,y2)    
+    plot_gpx_histogram(x,y1,y2, gpx_file)    
 
     print('')
 
@@ -106,7 +108,7 @@ def histogram(gpx, maxspeed):
 
     return (hist_dist.keys(), hist_dist.values(), hist_time.values())
 
-def plot_gpx_histogram(x,y1,y2):
+def plot_gpx_histogram(x,y1,y2, gpx_file):
     fig, ax1 = plt.subplots()
     plt.xticks(np.arange(min(x), max(x)+1, 2.0))
     #ax1.plot(x,y1,"b-")
@@ -123,7 +125,11 @@ def plot_gpx_histogram(x,y1,y2):
     ax2.set_ylabel('time m', color='g')
     for tl in ax2.get_yticklabels():
         tl.set_color('g')
-    plt.show() 
+    if to_file:
+        file_name = os.path.splitext(gpx_file)[0]
+        fig.savefig(file_name + '.png')
+    else:
+        plt.show() 
 
 def print_gpx_info(gpx):
     print('File: %s' % gpx_file)
@@ -137,22 +143,29 @@ def print_gpx_info(gpx):
     if gpx.email:
         print('  Email: %s' % gpx.email)
 
-    print_gpx_part_info(gpx)
+    print_gpx_part_info(gpx, gpx_file)
 
     #for track_no, track in enumerate(gpx.tracks):
     #    for segment_no, segment in enumerate(track.segments):
     #        print '    Track #%s, Segment #%s' % (track_no, segment_no)
     #        print_gpx_part_info(segment, indentation='        ')
 
-if not gpx_files:
-    print('No GPX files given')
-    mod_sys.exit(1)
 
-for gpx_file in gpx_files:
-    try:
-        gpx = mod_gpxpy.parse(open(gpx_file))
-        print_gpx_info(gpx)
-    except Exception as e:
-        mod_logging.exception(e)
-        print('Error processing %s' % gpx_file)
-        mod_sys.exit(1)
+if __name__ == '__main__':
+    
+    parser = argparse.ArgumentParser(description='Get the histograms of a bunch of gpx files')
+    parser.add_argument('files', metavar='gpx_file',  nargs='+', help='the list of gpx files' )
+    parser.add_argument('--to-file', action='store_true', help='set output to a file ' )
+
+    args = parser.parse_args()
+    gpx_files = args.files
+    to_file = args.to_file
+
+    for gpx_file in gpx_files:
+        try:
+            gpx = mod_gpxpy.parse(open(gpx_file))
+            print_gpx_info(gpx)
+        except Exception as e:
+            mod_logging.exception(e)
+            print('Error processing %s' % gpx_file)
+            mod_sys.exit(1)
